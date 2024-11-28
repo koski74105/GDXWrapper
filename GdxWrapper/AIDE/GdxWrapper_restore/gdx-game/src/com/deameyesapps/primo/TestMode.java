@@ -1,0 +1,458 @@
+package com.deameyesapps.primo;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.assets.AssetManager;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.PerspectiveCamera;
+import com.badlogic.gdx.graphics.VertexAttributes;
+import com.badlogic.gdx.graphics.g3d.Material;
+import com.badlogic.gdx.graphics.g3d.Model;
+import com.badlogic.gdx.graphics.g3d.ModelInstance;
+import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
+import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
+import com.badlogic.gdx.math.Vector3;
+import com.deameyesapps.GameLib.Button;
+import com.deameyesapps.GameLib.CollisionVector;
+import com.deameyesapps.GameLib.ControlStick;
+import com.deameyesapps.GameLib.DrawShape;
+import com.deameyesapps.GameLib.DrawText;
+import com.deameyesapps.GameLib.GameMode;
+import com.deameyesapps.GameLib.Limb3d;
+import com.deameyesapps.GameLib.ModelShortCut;
+import com.deameyesapps.GameLib.ModelSpaceContainer;
+import com.deameyesapps.GameLib.Plane3D;
+import com.deameyesapps.GameLib.ProtoLimb3d;
+import com.deameyesapps.GameLib.MouseClick;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class TestMode extends GameMode {
+    float gravity = 0.75f;
+    Button xPlus;
+    Button xMinus;
+    Button yPlus;
+    Button yMinus;
+    Button zPlus;
+    Button zMinus;
+    Button rotPlus;
+    Button rotMinus;
+    Button movForward;
+    Button movReverse;
+    Button declPlus;
+    Button declMinus;
+
+    ControlStick controlStick;
+    //PerspectiveCamera setCamera;
+    int declination = 0;
+
+    List<ProtoLimb3d> testLimbs;
+    Limb3d cylLimb;
+
+    List<ModelSpaceContainer> _3dObjects;
+    private int camAngle;
+    public static AssetManager manager;
+
+    public List<ModelSpaceContainer> collisionSpheres()
+    {
+        List<ModelSpaceContainer> retVal = new ArrayList<ModelSpaceContainer>();
+
+        ModelBuilder modelBuilder = new ModelBuilder();
+        Model midRound = modelBuilder.createSphere(1,1, 1, 12, 12,
+                new Material(ColorAttribute.createDiffuse(Color.CYAN)),
+                VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal);
+
+        Model ladderRound = modelBuilder.createSphere(1,1, 1, 12, 12,
+                new Material(ColorAttribute.createDiffuse(Color.PINK)),
+                VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal);
+
+
+        for(int i = 0; i < _3dObjects.size(); i++)
+        {
+            List<CollisionVector> occupied = _3dObjects.get(i).spaceOccupied;
+            for(int j = 0; j < occupied.size();j++)
+            {
+                CollisionVector temp = occupied.get((j));
+                List<CollisionVector> listSinglePoint = new ArrayList<CollisionVector>();
+                listSinglePoint.add(temp);
+
+                ModelInstance tempSph;
+                if(temp.collisionType == CollisionVector.CollisionType.Ladder)
+                    tempSph = new ModelInstance(ladderRound, temp.x, temp.y, temp.z);
+                else
+                    tempSph = new ModelInstance(midRound, temp.x, temp.y, temp.z);
+
+                retVal.add(new ModelSpaceContainer(tempSph, listSinglePoint));
+            }
+        }
+
+
+        return  retVal;
+    }
+
+
+    public  TestMode()
+    {
+        controlStick = new ControlStick(1800, 180, 100, 50, Color.BLUE, Color.GREEN);
+        xPlus = new Button(0, 100, 200, 100, Color.BLACK, Color.RED, "x+");
+        xMinus = new Button(0, 0, 200, 100, Color.BLACK, Color.RED, "x-");
+        yPlus = new Button(250, 100, 200, 100, Color.BLACK, Color.RED, "y+");
+        yMinus = new Button(250, 0, 200, 100, Color.BLACK, Color.RED, "y-");
+        zPlus = new Button(500, 100, 200, 100, Color.BLACK, Color.RED, "z+");
+        zMinus = new Button(500, 0, 200, 100, Color.BLACK, Color.RED, "z-");
+        declPlus = new Button(750, 100, 200, 100, Color.BLACK, Color.RED, "D+");
+        declMinus = new Button(1250, 100, 200, 100, Color.BLACK, Color.RED, "D-");
+
+        rotPlus = new Button(750, 0, 200, 100, Color.BLACK, Color.RED, "r+");
+        movForward = new Button(1000, 100, 200, 100, Color.BLACK, Color.RED, "Fwd");
+        movReverse = new Button(1000, 0, 200, 100, Color.BLACK, Color.RED, "Rev");
+        rotMinus = new Button(1250, 0, 200, 100, Color.BLACK, Color.RED, "r-");
+
+        _3dObjects = new ArrayList<ModelSpaceContainer>();
+        testLimbs = new ArrayList<ProtoLimb3d>();
+        testLimbs.add(new ProtoLimb3d(Color.CYAN, 4, 0, 3, 4,3,3,1, 0.25f));
+
+        cylLimb = new Limb3d(Color.CYAN, 8, 0, 3, 8, 5, 3, 1, Limb3d.Shape.cone1);
+
+        for(int i = -14; i >= -24; i--)
+        {
+            testLimbs.add(new ProtoLimb3d(Color.GREEN, -i, 0, 3, -i,3,3,1, 0.25f));
+        }
+
+        //WALLS Textured
+        Model wall = Plane3D.createPlane("textures/ground1.jpg", -10,0,0,10,0,0,10,10,0,-10,10,0);
+        _3dObjects.add(new ModelSpaceContainer(
+                new ModelInstance(wall, 4,0,4),
+                Plane3D.calculateSpaceOccupied(-10,0,0,10,0,0,10,10,0,-10,10,0,4,0,4, CollisionVector.CollisionType.Solid)));
+
+        //angled
+        wall = Plane3D.createPlane("textures/ground1.jpg", -10,5,0,10,0,0,10,10,0,-10,15,0);
+        _3dObjects.add(new ModelSpaceContainer(
+                new ModelInstance(wall, 24,0,14),
+                Plane3D.calculateSpaceOccupied(-10,5,0,10,0,0,10,10,0,-10,15,0,24,0,14, CollisionVector.CollisionType.Solid)
+                ));
+
+        //perpendicular
+        wall = Plane3D.createPlane("textures/loz/lozFence.png", 0,0,-10,0,0,10,0,10,10,0,10,-10);
+        _3dObjects.add( new ModelSpaceContainer(
+                new ModelInstance(wall, 44,0,4),
+                Plane3D.calculateSpaceOccupied(0,0,-10,0,0,10,0,10,10,0,10,-10,44,0,4, CollisionVector.CollisionType.Ladder)
+        ));
+
+        //horizontal??
+        wall = Plane3D.createPlane("textures/loz/lozBrick00.png", -5,10,-5,-5,10,5,5,10,5,5,10,-5);
+        _3dObjects.add(new ModelSpaceContainer(
+                new ModelInstance(wall, 64,0,4),
+                Plane3D.calculateSpaceOccupied(-5,10,-5,-5,10,5,5,10,5,5,10,-5,64,0,4, CollisionVector.CollisionType.Solid)
+        ));
+        _3dObjects.addAll(ModelShortCut.createLevel());
+        _3dObjects.add(ModelShortCut.createBoxes(4));//adds boxes
+        camera.position.set(50, 1, 50);
+        //_3dObjects.addAll(collisionSpheres());
+    }
+
+
+
+    private  void updateLimbs(float x, float y, float z)
+    {
+        for(int i = 0; i < testLimbs.size();i++)
+        {
+            ProtoLimb3d temp = testLimbs.get(i);
+            temp.setEndPoint(temp.endX + x, temp.endY + y, temp.endZ + z);
+        }
+
+        cylLimb.setEndPoint(cylLimb.endX + x, cylLimb.endY + y, cylLimb.endZ + z);
+    }
+
+    private  void updateCamera(PerspectiveCamera camera, float direction, float declination, float speed)
+    {
+        //calculate distance on plane
+        float distance = (float) Math.cos(Math.toRadians(declination));
+        float tempx = camera.position.x + (float) Math.sin(Math.toRadians(direction) )*distance * speed;
+        float tempz = camera.position.z + (float) Math.cos(Math.toRadians(direction))*distance * speed;
+        if(speed != 0)
+        {
+            //boolean collide = false;
+            CollisionVector.CollisionType collide = CollisionVector.CollisionType.Nothing;
+            if(cylLimb.checkCollision((int)tempx, (int)camera.position.y, (int)tempz))
+            {
+                collide = CollisionVector.CollisionType.Solid;
+            }
+
+            for(int i = 0; i < _3dObjects.size(); i++)
+            {
+                collide = Plane3D.checkCollision((int)tempx, (int)camera.position.y, (int)tempz, _3dObjects.get(i).spaceOccupied, collide);
+            }
+
+            if(collide == CollisionVector.CollisionType.Nothing)
+                camera.position.set(tempx, camera.position.y, tempz);
+
+            //Increase Y if ladder collision
+            if(collide == CollisionVector.CollisionType.Ladder)
+            {
+                float tempY = camera.position.y + gravity + 0.25f;
+                if(cylLimb.checkCollision((int)camera.position.x, (int)tempY, (int)camera.position.z))
+                    collide = CollisionVector.CollisionType.Solid;
+                for(int i = 0; i < _3dObjects.size(); i++)
+                    collide = Plane3D.checkCollision((int)camera.position.x, (int)tempY, (int)camera.position.z, _3dObjects.get(i).spaceOccupied, collide);
+                if(collide == CollisionVector.CollisionType.Ladder || collide == CollisionVector.CollisionType.Nothing)
+                    camera.position.set(camera.position.x, tempY, camera.position.z);
+            }
+        }
+
+        //calculate vertical position
+        float tempy = camera.position.y + (float) Math.sin(Math.toRadians(declination));
+        float tempD = (float)Math.sin(Math.toRadians(declination));
+        tempx = camera.position.x + (float) Math.sin(Math.toRadians(direction));
+        tempz = camera.position.z + (float) Math.cos(Math.toRadians(direction));
+        camera.up.set(Vector3.Y);
+        camera.lookAt(tempx, tempy, tempz);
+    }
+
+    @Override
+    public boolean mouseClick(PerspectiveCamera camera, int X, int Y) {
+        //setCamera = camera;
+        if(xPlus.mouseClick(camera, X, Y))
+        {
+            updateLimbs(0.1f, 0, 0);
+        }
+        if(xMinus.mouseClick(camera, X, Y))
+        {
+            updateLimbs(-0.1f, 0, 0);
+        }
+        if(yPlus.mouseClick(camera, X, Y))
+        {
+            updateLimbs(0, 0.1f, 0);
+        }
+        if(yMinus.mouseClick(camera, X, Y))//roll
+        {
+            updateLimbs(0,-0.1f, 0);
+        }
+        if(zPlus.mouseClick(camera, X, Y))//declination
+        {
+            updateLimbs(0,0, 0.1f);
+        }
+        if(zMinus.mouseClick(camera, X, Y))
+        {
+            updateLimbs(0,0, -0.1f);
+        }
+
+        if(rotPlus.mouseClick(camera, X, Y))
+        {
+            camAngle += 10;
+            if(camAngle >= 360 ) camAngle -= 360;
+            updateCamera(camera, camAngle, declination, 0);
+        }
+        if(rotMinus.mouseClick(camera, X, Y))
+        {
+            camAngle -= 10;
+            if(camAngle < 0 ) camAngle += 360;
+            updateCamera(camera, camAngle, declination, 0);
+        }
+
+        if(movForward.mouseClick(camera, X, Y))
+        {
+            updateCamera(camera, camAngle, declination, 1);
+        }
+        if(movReverse.mouseClick(camera, X, Y))
+        {
+            updateCamera(camera, camAngle, declination, -1);
+        }
+
+        if(declMinus.mouseClick(camera, X, Y))
+        {
+            declination --;
+            if(declination < -45)
+                declination = -45;
+            updateCamera(camera, camAngle, declination, 0);
+        }
+
+        if(declPlus.mouseClick(camera, X, Y))
+        {
+            declination ++;
+            if(declination > 45)
+                declination = 45;
+            updateCamera(camera, camAngle, declination, 0);
+        }
+
+        return  false;
+    }
+
+    @Override
+    public void mouseRelease() {
+
+    }
+
+    @Override
+    public boolean checkClicks(List<MouseClick> clicks) {
+        controlStick.checkClicks(clicks);
+        if((controlStick.Direction <45 || controlStick.Direction > 315) && controlStick.Velocity > 50 //&& setCamera != null
+        )
+        {
+            //updateCamera(setCamera, camAngle, declination, 1);
+            updateCamera(this.camera, camAngle, declination, 1);
+        }
+        if((controlStick.Direction > 135 && controlStick.Direction < 225) && controlStick.Velocity > 50 //&& setCamera != null
+        )
+        {
+            //updateCamera(setCamera, camAngle, declination, -1);
+            updateCamera(this.camera, camAngle, declination, -1);
+        }
+
+        if((controlStick.Direction > 45 && controlStick.Direction < 135) && controlStick.Velocity > 50 //&& setCamera != null
+        )
+        {
+            camAngle -= 10;
+            if(camAngle < 0) camAngle += 360;
+            //updateCamera(setCamera, camAngle, declination, 0);
+            updateCamera(this.camera, camAngle, declination, 0);
+        }
+
+        if((controlStick.Direction > 225 && controlStick.Direction < 315) && controlStick.Velocity > 50 // && setCamera != null
+        )
+        {
+            camAngle += 10;
+            if(camAngle > 360) camAngle -= 360;
+            //updateCamera(setCamera, camAngle, declination, 0);
+            updateCamera(this.camera, camAngle, declination, 0);
+        }
+        doGravity();
+        //doGravity();
+        return false;
+    }
+
+
+    private void doGravity()
+    {
+        //gravity check not adjacent to ladder:
+        CollisionVector.CollisionType collideDown = CollisionVector.CollisionType.Nothing;
+        CollisionVector.CollisionType collideN = CollisionVector.CollisionType.Nothing;
+        CollisionVector.CollisionType collideS = CollisionVector.CollisionType.Nothing;
+        CollisionVector.CollisionType collideW = CollisionVector.CollisionType.Nothing;
+        CollisionVector.CollisionType collideE = CollisionVector.CollisionType.Nothing;
+        CollisionVector.CollisionType collideNW = CollisionVector.CollisionType.Nothing;
+        CollisionVector.CollisionType collideSW = CollisionVector.CollisionType.Nothing;
+        CollisionVector.CollisionType collideNE = CollisionVector.CollisionType.Nothing;
+        CollisionVector.CollisionType collideSE = CollisionVector.CollisionType.Nothing;
+
+        float tempY = camera.position.y - gravity;
+        if(cylLimb.checkCollision((int)camera.position.x, (int)tempY, (int)camera.position.z))
+            collideDown = CollisionVector.CollisionType.Solid;
+        for(int i = 0; i < _3dObjects.size(); i++)
+        {
+            collideDown = Plane3D.checkCollision((int)camera.position.x, (int)tempY, (int)camera.position.z, _3dObjects.get(i).spaceOccupied, collideDown);
+            collideN = Plane3D.checkCollision((int)camera.position.x, (int)camera.position.y, (int)(camera.position.z + 1f), _3dObjects.get(i).spaceOccupied, collideN);
+            collideNW = Plane3D.checkCollision((int)(camera.position.x - 1f), (int)camera.position.y, (int)(camera.position.z + 1f), _3dObjects.get(i).spaceOccupied, collideNW);
+            collideNE = Plane3D.checkCollision((int)(camera.position.x + 1f), (int)camera.position.y, (int)(camera.position.z + 1f), _3dObjects.get(i).spaceOccupied, collideNE);
+            collideW = Plane3D.checkCollision((int)(camera.position.x - 1f), (int)camera.position.y, (int)camera.position.z, _3dObjects.get(i).spaceOccupied, collideW);
+            collideE = Plane3D.checkCollision((int)(camera.position.x + 1f), (int)camera.position.y, (int)camera.position.z, _3dObjects.get(i).spaceOccupied, collideE);
+            collideS = Plane3D.checkCollision((int)camera.position.x, (int)camera.position.y, (int)(camera.position.z - 1f), _3dObjects.get(i).spaceOccupied, collideS);
+            collideSW = Plane3D.checkCollision((int)(camera.position.x - 1f), (int)camera.position.y, (int)(camera.position.z - 1f), _3dObjects.get(i).spaceOccupied, collideSW);
+            collideSE = Plane3D.checkCollision((int)(camera.position.x + 1f), (int)camera.position.y, (int)(camera.position.z - 1f), _3dObjects.get(i).spaceOccupied, collideSE);
+        }
+
+        if(collideDown == CollisionVector.CollisionType.Nothing && collideN != CollisionVector.CollisionType.Ladder &&  collideNE != CollisionVector.CollisionType.Ladder
+                && collideNW != CollisionVector.CollisionType.Ladder && collideW!= CollisionVector.CollisionType.Ladder && collideE != CollisionVector.CollisionType.Ladder
+                && collideS != CollisionVector.CollisionType.Ladder &&  collideSE != CollisionVector.CollisionType.Ladder && collideSW != CollisionVector.CollisionType.Ladder
+            //&& tempY > 1
+        )
+            camera.position.set(camera.position.x, tempY, camera.position.z);
+
+        //calculate vertical position
+        float tempy = camera.position.y + (float) Math.sin(Math.toRadians(declination));
+        float tempD = (float)Math.sin(Math.toRadians(declination));
+        float tempx = camera.position.x + (float) Math.sin(Math.toRadians(camAngle));
+        float tempz = camera.position.z + (float) Math.cos(Math.toRadians(camAngle));
+        camera.up.set(Vector3.Y);
+        camera.lookAt(tempx, tempy, tempz);
+    }
+
+    @Override
+    public void render(PerspectiveCamera camera, List<ModelInstance> modelInstances,
+                       List<DrawShape> LowerDraw, List<DrawText> text,
+                       List<DrawShape> upperDraw) {
+
+        if(Gdx.input.isKeyPressed(Input.Keys.UP)){
+            updateCamera(camera, camAngle, declination, 1);
+        }
+        if(Gdx.input.isKeyPressed(Input.Keys.DOWN)) {
+            updateCamera(this.camera, camAngle, declination, -1);
+        }
+        if(Gdx.input.isKeyPressed(Input.Keys.LEFT))
+        {
+            camAngle += 10;
+            if(camAngle >= 360 ) camAngle -= 360;
+            updateCamera(camera, camAngle, declination, 0);
+        }
+            if(Gdx.input.isKeyPressed(Input.Keys.RIGHT))
+        {
+            camAngle -= 10;
+            if(camAngle < 0 ) camAngle += 360;
+            updateCamera(camera, camAngle, declination, 0);
+        }
+
+
+        controlStick.render(camera, modelInstances, LowerDraw, text, upperDraw);
+        xPlus.render(camera, modelInstances, LowerDraw, text, upperDraw);
+        xMinus.render(camera, modelInstances,LowerDraw, text, upperDraw);
+        yPlus.render(camera, modelInstances,LowerDraw, text, upperDraw);
+        yMinus.render(camera, modelInstances,LowerDraw, text, upperDraw);
+        zPlus.render(camera, modelInstances,LowerDraw, text, upperDraw);
+        zMinus.render(camera, modelInstances,LowerDraw, text, upperDraw);
+
+        //text.add(new DrawText(Color.BLACK, 0, 300, controlStick.Direction+""));
+        text.add(new DrawText(Color.BLACK, 0, 300,  "Pitch:" + cylLimb.pitchVal));
+        text.add(new DrawText(Color.BLACK, 0, 360,  "Yaw:" + cylLimb.yawVal+""));
+
+        declPlus.render(camera, modelInstances, LowerDraw, text, upperDraw);
+        declMinus.render(camera, modelInstances, LowerDraw, text, upperDraw);
+
+        rotPlus.render(camera, modelInstances,LowerDraw, text, upperDraw);
+        rotMinus.render(camera, modelInstances,LowerDraw, text, upperDraw);
+        movForward.render(camera, modelInstances,LowerDraw, text, upperDraw);
+        movReverse.render(camera, modelInstances,LowerDraw, text, upperDraw);
+
+        //cylLimb.rotX(1);
+        //cylLimb.rotZ(1);
+
+//        if(cylLimb.rotXVal  %45 == 0)
+//        {
+//            cylLimb.rotZ(1);
+//            if(cylLimb.rotZVal %45 == 0)
+//            {
+//                cylLimb.rotX(1);
+//            }
+//        }
+//        else
+//        {
+//            cylLimb.rotX(1);
+//        }
+
+
+        cylLimb.render(camera, modelInstances, LowerDraw, text, upperDraw);
+
+        for(int i = 0; i < testLimbs.size();i++)
+        {
+            testLimbs.get(i).render(camera, modelInstances,LowerDraw, text, upperDraw);
+        }
+
+        //for(int i = 0; i < walls.size(); i++)
+        for(int i = 0; i < _3dObjects.size();i++)
+        {
+            //modelInstances.add(walls.get(i));
+            modelInstances.add(_3dObjects.get(i).modelInstance);
+        }
+        //modelInstances.add(wallInstance);
+    }
+
+    @Override
+    public void dispose() {
+        for(int i = testLimbs.size(); i >= 0;i--)
+        {
+            testLimbs.get(i).dispose();
+            testLimbs.remove(i);
+        }
+    }
+
+}
